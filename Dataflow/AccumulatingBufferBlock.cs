@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
-using tpldfexplore.Utils;
+using Microsoft.Extensions.Logging;
 
 namespace tpldfexplore.Dataflow
 {
@@ -15,6 +15,8 @@ namespace tpldfexplore.Dataflow
     public class AccumulatingBufferBlock<T> : IAccumulatingBufferBlock<T>
     {
         public IAccumulator<T> Accumulator { get; }
+        public ILogger<AccumulatingBufferBlock<T>> Logger { get; }
+
         static object AccumulatorLock = new object();
 
         ActionBlock<IEnumerable<T>> AccumBlock;
@@ -25,7 +27,7 @@ namespace tpldfexplore.Dataflow
             get { return completion; }
             set
             {
-                if(completion == null)
+                if (completion == null)
                 {
                     completion = value;
                 }
@@ -36,18 +38,19 @@ namespace tpldfexplore.Dataflow
             }
         }
 
-        public AccumulatingBufferBlock(IAccumulator<T> accumulator)
+        public AccumulatingBufferBlock(IAccumulator<T> accumulator, ILogger<AccumulatingBufferBlock<T>> logger)
         {
             Accumulator = accumulator;
+            Logger = logger;
 
             AccumBlock = new ActionBlock<IEnumerable<T>>(itemsEnumerable =>
             {
                 var items = itemsEnumerable.ToArray();
                 lock (AccumulatorLock)
                 {
-                    Program.Log($"AccumBlock adding {items.Length} items.");
+                    Logger.LogDebug($"AccumBlock adding {items.Length} items.");
                     Accumulator.AddRange(items);
-                    Program.Log("AccumBlock adding done.");
+                    Logger.LogDebug("AccumBlock adding done.");
                 }
             });
         }
@@ -61,22 +64,31 @@ namespace tpldfexplore.Dataflow
         public void Complete()
         {
             ((ITargetBlock<IEnumerable<T>>)AccumBlock).Complete();
+            Logger.LogTrace("COMPLETE.");
         }
 
         public void Fault(Exception exception)
         {
             ((ITargetBlock<IEnumerable<T>>)AccumBlock).Fault(exception);
+            Logger.LogTrace("FAULT.");
         }
 
         public IDisposable LinkTo(ITargetBlock<IEnumerable<T>> target, DataflowLinkOptions linkOptions)
         {
             var emitter = new WriteOnceBlock<IEnumerable<T>>(items => items);
             // When the AccumBlock completes, send all the items to the emitter and complete it.
-            AccumBlock.Completion.ContinueWith(o =>
+            AccumBlock.Completion.ContinueWith(async o =>
             {
-                emitter.SendAsync(Accumulator).Wait();
-                emitter.Complete();
-                Program.Log("emitter complete.");
+                if (o.IsFaulted)
+                {
+                    ((ITargetBlock<IEnumerable<T>>)emitter).Fault(o.Exception);
+                }
+                else
+                {
+                    await emitter.SendAsync(Accumulator);
+                    emitter.Complete();
+                    Logger.LogTrace("emitter complete.");
+                }
             });
             Completion = emitter.Completion;
             var disposable = emitter.LinkTo(target, linkOptions);

@@ -1,8 +1,9 @@
 using System;
 using System.Collections.Generic;
-using System.Linq;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using tpldfexplore.Batch;
 
 namespace tpldfexplore.Command
@@ -12,19 +13,25 @@ namespace tpldfexplore.Command
         #region Ctor / properties
 
         public SimpleDataFlowCommand(
+            IOptions<ProgramOptions> optionsAccessor,
             IReader<TSource> reader,
             Func<IProcessor<TSource, TTarget>> processor,
-            Func<IWriter<TTarget>> writer
+            Func<IWriter<TTarget>> writer,
+            ILogger<SimpleDataFlowCommand<TSource, TTarget>> logger
         )
         {
+            Options = optionsAccessor?.Value;
             Reader = reader;
             Processor = processor;
             Writer = writer;
+            Logger = logger;
         }
 
+        public ProgramOptions Options { get; set; }
         public IReader<TSource> Reader { get; }
         public Func<IProcessor<TSource, TTarget>> Processor { get; }
         public Func<IWriter<TTarget>> Writer { get; }
+        public ILogger<SimpleDataFlowCommand<TSource, TTarget>> Logger { get; }
 
         #endregion
 
@@ -34,7 +41,7 @@ namespace tpldfexplore.Command
             Task completionTask;
             var pipeline = BuildPipeline(context, out completionTask);
 
-            foreach (var item in Reader.Items(AppConfig.ReadChunkSize, context))
+            foreach (var item in Reader.Items(Options.ReadChunkSize, context))
             {
                 pipeline.SendAsync(item).Wait();
             }
@@ -42,31 +49,31 @@ namespace tpldfexplore.Command
             try
             {
                 pipeline.Complete();
-                Program.Log("pipeline.Complete() returned");
+                Logger.LogDebug("pipeline.Complete() returned");
 
                 completionTask.Wait();
-                Program.Log("completionTask.Wait() returned");
+                Logger.LogDebug("completionTask.Wait() returned");
             }
             catch (Exception e)
             {
-                Program.Log($"ERROR: {e.GetType().ToString()} - {e.Message}");
+                Logger.LogError(e, "ERROR");
             }
         }
 
         protected ITargetBlock<TSource> BuildPipeline(object context, out Task completionTask)
         {
-            var readerBlock = new BufferBlock<TSource>(new DataflowBlockOptions { BoundedCapacity = AppConfig.ReadChunkSize });
+            var readerBlock = new BufferBlock<TSource>(new DataflowBlockOptions { BoundedCapacity = Options.ReadChunkSize });
             var processorBlock = new TransformBlock<TSource, TTarget>(async item =>
             {
                 return await Processor().Process(item, context);
             },
             new ExecutionDataflowBlockOptions
             {
-                BoundedCapacity = AppConfig.ReadChunkSize,
-                MaxDegreeOfParallelism = AppConfig.MaxDegreeOfParallelism,
+                BoundedCapacity = Options.ReadChunkSize,
+                MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism,
                 SingleProducerConstrained = true
             });
-            var batchblock = new BatchBlock<TTarget>(AppConfig.ReadChunkSize);
+            var batchblock = new BatchBlock<TTarget>(Options.ReadChunkSize);
             var writerBlock = new ActionBlock<ICollection<TTarget>>(async items =>
             {
                 var writer = Writer();
@@ -74,7 +81,7 @@ namespace tpldfexplore.Command
             },
             new ExecutionDataflowBlockOptions
             {
-                MaxDegreeOfParallelism = AppConfig.MaxDegreeOfParallelism,
+                MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism,
                 SingleProducerConstrained = true
             });
 
@@ -87,11 +94,11 @@ namespace tpldfexplore.Command
                 try
                 {
                     writerBlock.Completion.Wait();
-                    Program.Log("writerBlock.Completion.Wait() returned");
+                    Logger.LogDebug("writerBlock.Completion.Wait() returned");
                 }
                 catch (Exception e)
                 {
-                    Program.Log($"ERROR: {e.GetType().ToString()} - {e.Message}");
+                    Logger.LogError(e, "ERROR");
                 }
                 finally
                 {

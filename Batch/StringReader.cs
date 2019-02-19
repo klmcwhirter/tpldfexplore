@@ -1,24 +1,27 @@
 using System.Collections.Generic;
 using System.Linq;
+using Microsoft.Extensions.Logging;
 
 namespace tpldfexplore.Batch
 {
     public class StringReader : IReader<int>
     {
-        public StringReader(int count = 120)
+        public StringReader(ILogger<StringReader> logger, int count = 120)
         {
             Count = count;
+            Logger = logger;
         }
 
         public int Count { get; }
+        public ILogger<StringReader> Logger { get; }
 
         public IEnumerable<int> Items(int chunkSize, object context)
         {
-            Program.Log($"StringReader.Items - chunkSize={chunkSize}");
+            Logger.LogDebug($"StringReader.Items - chunkSize={chunkSize}");
 
             var rc = Enumerable.Range(0, Count);
 
-            Program.Log($"StringReader.Items - done.");
+            Logger.LogDebug($"StringReader.Items - done.");
             return rc;
         }
     }

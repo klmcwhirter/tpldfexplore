@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using System.Threading.Tasks;
 using System.Threading.Tasks.Dataflow;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
 using tpldfexplore.Batch;
 using tpldfexplore.Dataflow;
 
@@ -12,23 +14,29 @@ namespace tpldfexplore.Command
         #region Ctor / properties
 
         public AccumulatingDataFlowCommand(
+            IOptions<ProgramOptions> optionsAccssor,
             IReader<TSource> reader,
             Func<IProcessor<TSource, TTarget>> processor,
             Func<IWriter<TTarget>> writer,
+            ILogger<AccumulatingDataFlowCommand<TSource, TTarget>> logger,
             ICompletionWriter<TTarget> completionWriter = null,
             IAccumulator<TTarget> accumulator = null
         )
         {
+            Options = optionsAccssor?.Value;
             Reader = reader;
             Processor = processor;
             Writer = writer;
+            Logger = logger;
             CompletionWriter = completionWriter;
             Accumulator = accumulator;
         }
 
+        public ProgramOptions Options { get; set; }
         public IReader<TSource> Reader { get; }
         public Func<IProcessor<TSource, TTarget>> Processor { get; }
         public Func<IWriter<TTarget>> Writer { get; }
+        public ILogger<AccumulatingDataFlowCommand<TSource, TTarget>> Logger { get; }
         public ICompletionWriter<TTarget> CompletionWriter { get; }
         public IAccumulator<TTarget> Accumulator { get; }
 
@@ -40,7 +48,7 @@ namespace tpldfexplore.Command
             Task completionTask;
             var pipeline = BuildPipeline(context, out completionTask);
 
-            foreach (var item in Reader.Items(AppConfig.ReadChunkSize, context))
+            foreach (var item in Reader.Items(Options.ReadChunkSize, context))
             {
                 pipeline.SendAsync(item).Wait(); // Do this instead of Post(item)
             }
@@ -48,32 +56,32 @@ namespace tpldfexplore.Command
             try
             {
                 pipeline.Complete();
-                Program.Log("pipeline.Complete() returned");
+                Logger.LogDebug("pipeline.Complete() returned");
 
                 completionTask.Wait();
-                Program.Log("completionTask.Wait() returned");
+                Logger.LogDebug("completionTask.Wait() returned");
             }
             catch (Exception e)
             {
-                Program.Log($"ERROR: {e.GetType().ToString()} - {e.Message}");
+                Logger.LogError(e, "ERROR");
                 pipeline.Complete();
             }
         }
 
         protected ITargetBlock<TSource> BuildPipeline(object context, out Task completionTask)
         {
-            var readerBlock = new BufferBlock<TSource>(new DataflowBlockOptions { BoundedCapacity = AppConfig.ReadChunkSize });
+            var readerBlock = new BufferBlock<TSource>(new DataflowBlockOptions { BoundedCapacity = Options.ReadChunkSize });
             var processorBlock = new TransformBlock<TSource, TTarget>(async item =>
             {
                 return await Processor().Process(item, context);
             },
             new ExecutionDataflowBlockOptions
             {
-                BoundedCapacity = AppConfig.ReadChunkSize,
-                MaxDegreeOfParallelism = AppConfig.MaxDegreeOfParallelism,
+                BoundedCapacity = Options.ReadChunkSize,
+                MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism,
                 SingleProducerConstrained = true
             });
-            var batchblock = new BatchBlock<TTarget>(AppConfig.ReadChunkSize);
+            var batchblock = new BatchBlock<TTarget>(Options.ReadChunkSize);
             var taskScheduler = new ConcurrentExclusiveSchedulerPair();
             var writerBlock = new ActionBlock<ICollection<TTarget>>(async items =>
             {
@@ -82,7 +90,7 @@ namespace tpldfexplore.Command
             },
             new ExecutionDataflowBlockOptions
             {
-                MaxDegreeOfParallelism = AppConfig.MaxDegreeOfParallelism,
+                MaxDegreeOfParallelism = Options.MaxDegreeOfParallelism,
                 TaskScheduler = taskScheduler.ExclusiveScheduler
             });
 
@@ -93,12 +101,12 @@ namespace tpldfexplore.Command
             completionTask = new Task(() =>
             {
                 writerBlock.Completion.Wait();
-                Program.Log("writerBlock.Completion.Wait() returned");
+                Logger.LogDebug("writerBlock.Completion.Wait() returned");
                 if (CompletionWriter != null && Accumulator != null)
                 {
-                    Program.Log("Calling CompletionWriter");
+                    Logger.LogDebug("Calling CompletionWriter");
                     CompletionWriter.Write(Accumulator, context).Wait();
-                    Program.Log("CompletionWriter returned");
+                    Logger.LogDebug("CompletionWriter returned");
                 }
             });
 
@@ -111,11 +119,14 @@ namespace tpldfexplore.Command
     public class AccumulatingWriter<TTarget> : IWriter<TTarget>
     {
         public IAccumulator<TTarget> Accumulator { get; }
+        public ILogger<TTarget> Logger { get; }
+
         static object AccumulatorLock = new object();
 
-        public AccumulatingWriter(IAccumulator<TTarget> accumulator)
+        public AccumulatingWriter(IAccumulator<TTarget> accumulator, ILogger<TTarget> logger)
         {
             Accumulator = accumulator;
+            Logger = logger;
         }
 
         public Task Write(ICollection<TTarget> items, object context)
@@ -124,9 +135,9 @@ namespace tpldfexplore.Command
             {
                 lock (AccumulatorLock)
                 {
-                    Program.Log($"AccumuatingWriter.Write adding {items.Count} items.");
+                    Logger.LogDebug($"AccumuatingWriter.Write adding {items.Count} items.");
                     Accumulator.AddRange(items);
-                    Program.Log("AccumuatingWriter.Write done.");
+                    Logger.LogDebug("AccumuatingWriter.Write done.");
                 }
             });
         }

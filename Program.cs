@@ -1,39 +1,37 @@
 ﻿using System;
-using Autofac;
 
 namespace tpldfexplore
 {
-    public static class Program
+    public class Program
     {
-        public static object consoleLock = new object();
-
-        public static void Log(string msg)
-        {
-            if (!AppConfig.DoLog) return;
-
-            lock (consoleLock)
-            {
-                Console.WriteLine(msg);
-            }
-        }
+        public static ProgramOptions Options { get; set; }
 
         static void Main(string[] args)
         {
-            AutofacConfiguration.RegisterTypes(args[0]);
-            var command = AutofacConfiguration.GetCommand();
-            command.Run();
+            int iterationsParsed;
+            int? iterations = null;
+            if (args.Length > 1 && int.TryParse(args[1], out iterationsParsed))
+            {
+                iterations = iterationsParsed;
+            }
+
+            using (var startup = new Startup())
+            {
+                startup.Configure(args[0], iterations);
+
+                Options = startup.GetOptions();
+
+                var command = startup.GetCommand();
+                command.Run();
+            }
         }
     }
 
-    public static class AppConfig
+    public class ProgramOptions
     {
-        public const bool DoLog = true;
+        public bool DoLog { get; set; }
 
-        public const int Iterations = 10000;
-
-        public const int MaxDegreeOfParallelism = 8;
-
-        public const int ReadChunkSize = 100;
-
+        public int MaxDegreeOfParallelism { get; set; }
+        public int ReadChunkSize { get; set; }
     }
 }
