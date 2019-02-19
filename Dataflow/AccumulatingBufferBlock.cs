@@ -50,7 +50,7 @@ namespace tpldfexplore.Dataflow
                 {
                     Logger.LogDebug($"AccumBlock adding {items.Length} items.");
                     Accumulator.AddRange(items);
-                    Logger.LogDebug("AccumBlock adding done.");
+                    Logger.LogTrace("AccumBlock adding done.");
                 }
             });
         }

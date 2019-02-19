@@ -21,7 +21,7 @@ namespace tpldfexplore.Batch
 
             var rc = Enumerable.Range(0, Count);
 
-            Logger.LogDebug($"StringReader.Items - done.");
+            Logger.LogTrace($"StringReader.Items - done.");
             return rc;
         }
     }

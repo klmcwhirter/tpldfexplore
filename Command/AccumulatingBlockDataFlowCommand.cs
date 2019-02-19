@@ -21,8 +21,7 @@ namespace tpldfexplore.Command
             Func<IWriter<TTarget>> writer,
             ILogger<AccumulatingBlockDataFlowCommand<TSource, TTarget>> logger,
             ICompletionWriter<TTarget> completionWriter = null,
-            Func<IAccumulatingBufferBlock<TTarget>> accumulatingBlock = null,
-            bool accumulateWrites = true
+            Func<IAccumulatingBufferBlock<TTarget>> accumulatingBlock = null
         )
         {
             Options = optionsAccessor?.Value;
@@ -32,7 +31,6 @@ namespace tpldfexplore.Command
             Logger = logger;
             CompletionWriter = completionWriter;
             AccumulatingBlock = accumulatingBlock;
-            AccumulateWrites = accumulateWrites;
         }
 
         public ProgramOptions Options { get; set; }
@@ -42,7 +40,6 @@ namespace tpldfexplore.Command
         public ILogger<AccumulatingBlockDataFlowCommand<TSource, TTarget>> Logger { get; }
         public ICompletionWriter<TTarget> CompletionWriter { get; }
         public Func<IAccumulatingBufferBlock<TTarget>> AccumulatingBlock { get; }
-        public bool AccumulateWrites { get; }
 
         #endregion
 
@@ -105,7 +102,7 @@ namespace tpldfexplore.Command
 
             readerBlock.LinkToWithPropagation(processorBlock);
             processorBlock.LinkToWithPropagation(batchblock);
-            if (AccumulateWrites)
+            if (AccumulatingBlock != null)
             {
                 var accumBlock = AccumulatingBlock();
                 batchblock.LinkToWithPropagation(accumBlock);

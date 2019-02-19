@@ -55,8 +55,7 @@ namespace tpldfexplore.Command
                 builder.RegisterType<Int2WordsProcessor>().As<IProcessor<int, string>>();
                 builder.RegisterType<LoggerWriter<string>>().As<IWriter<string>>();
                 builder.RegisterType<CompletedWriter<string>>().As<ICompletionWriter<string>>();
-                builder.RegisterType<AccumulatingBlockDataFlowCommand<int, string>>().As<ICommand>()
-                    .WithParameter(new NamedParameter("accumulateWrites", false));
+                builder.RegisterType<AccumulatingBlockDataFlowCommand<int, string>>().As<ICommand>();
             }
         }
 
