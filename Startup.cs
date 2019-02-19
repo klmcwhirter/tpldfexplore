@@ -32,8 +32,8 @@ namespace tpldfexplore
                 builder.SetMinimumLevel(LogLevel.Trace);
                 builder.AddNLog(new NLogProviderOptions
                 {
-                    CaptureMessageTemplates = true,
-                    CaptureMessageProperties = true
+                    CaptureMessageTemplates = false,
+                    CaptureMessageProperties = false
                 });
                 builder.AddDebug();
             });

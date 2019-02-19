@@ -48,7 +48,7 @@ namespace tpldfexplore.Dataflow
                 var items = itemsEnumerable.ToArray();
                 lock (AccumulatorLock)
                 {
-                    Logger.LogDebug($"AccumBlock adding {items.Length} items.");
+                    Logger.LogTrace($"AccumBlock adding {items.Length} items.");
                     Accumulator.AddRange(items);
                     Logger.LogTrace("AccumBlock adding done.");
                 }
