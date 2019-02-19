@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading.Tasks;
 using Microsoft.Extensions.Logging;
 
 namespace tpldfexplore.Batch
@@ -20,6 +21,7 @@ namespace tpldfexplore.Batch
             Logger.LogDebug($"StringReader.Items - chunkSize={chunkSize}");
 
             var rc = Enumerable.Range(0, Count);
+            Task.Delay(20);
 
             Logger.LogTrace($"StringReader.Items - done.");
             return rc;

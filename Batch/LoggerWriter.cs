@@ -31,6 +31,8 @@ namespace tpldfexplore.Batch
                         Logger.LogTrace(item.ToString());
                     }
                 }
+                Task.Delay(20);
+
                 Logger.LogTrace($"LoggerWriter.Write done writing {items.Count} items.");
             });
         }

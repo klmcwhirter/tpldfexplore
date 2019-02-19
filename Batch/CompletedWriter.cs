@@ -15,7 +15,10 @@ namespace tpldfexplore.Batch
 
         public Task Write(ICollection<T> items, object context)
         {
-            return Task.Factory.StartNew(() => Logger.LogInformation("CompletedWriter<T>.Write: Completed."));
+            return Task.Factory.StartNew(() => {
+                Logger.LogInformation("CompletedWriter<T>.Write: Completed.");
+                Task.Delay(20);
+            });
         }
     }
 }
