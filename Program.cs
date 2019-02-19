@@ -15,9 +15,16 @@ namespace tpldfexplore
                 iterations = iterationsParsed;
             }
 
+            int readChunkSizeParsed;
+            int? readChunkSize = null;
+            if (args.Length > 2 && int.TryParse(args[2], out readChunkSizeParsed))
+            {
+                readChunkSize = readChunkSizeParsed;
+            }
+
             using (var startup = new Startup())
             {
-                startup.Configure(args[0], iterations);
+                startup.Configure(args[0], iterations, readChunkSize);
 
                 Options = startup.GetOptions();
 

@@ -19,7 +19,7 @@ namespace tpldfexplore
 
         IContainer Container { get; set; }
 
-        public void ConfigureServices(IServiceCollection services)
+        public void ConfigureServices(ServiceCollection services, int? readChunkSize)
         {
             var configBuilder = new ConfigurationBuilder()
             .SetBasePath(Directory.GetCurrentDirectory())
@@ -43,7 +43,7 @@ namespace tpldfexplore
             {
                 opts.DoLog = Configuration.GetValue<bool>("doLog", false);
                 opts.MaxDegreeOfParallelism = Configuration.GetValue<int>("maxDegreeOfParallelism", Environment.ProcessorCount);
-                opts.ReadChunkSize = Configuration.GetValue<int>("readChunkSize", 100);
+                opts.ReadChunkSize = readChunkSize ?? Configuration.GetValue<int>("readChunkSize", 100);
             });
         }
 
@@ -64,10 +64,10 @@ namespace tpldfexplore
             Container = builder.Build();
         }
 
-        public void Configure(string name, int? iterations)
+        public void Configure(string name, int? iterations, int? readChunkSize)
         {
             var services = new ServiceCollection();
-            ConfigureServices(services);
+            ConfigureServices(services, readChunkSize);
 
             if (Container == null)
             {
